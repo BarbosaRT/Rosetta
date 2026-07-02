@@ -1,32 +1,81 @@
 "use client";
 
-import { useCallback, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { emptyInk, type Ink, type Point, type Stroke } from "@/lib/ink";
 
 interface Props {
-  width: number;
-  height: number;
   onRecognize: (ink: Ink) => void;
+  busy?: boolean;
 }
 
+const PEN_COLOR = "#2a3670"; // tinta azul-preta (--pen)
+const PEN_WIDTH = 2.25;
+const ASPECT = 0.52; // altura = largura * ASPECT
+
 /**
- * Canvas de tinta online.
+ * Folha de escrita (canvas de tinta online).
  *
- * Captura PointerEvents e agrupa em traços no esquema de tinta compartilhado:
- *   pointerdown -> começa um novo Stroke
- *   pointermove -> adiciona Point (x,y relativos ao canvas, t = ms desde o 1º ponto)
- *   pointerup   -> fecha o Stroke
+ * A captura é a "verdade"; o <canvas> é só desenho (ADR 0001/0004):
+ *   pointerdown → novo Stroke · pointermove → Point {x, y, t} · pointerup → fecha.
  *
- * A captura é a "verdade"; o <canvas> é só desenho. Assim o payload enviado ao ML é
- * exatamente a trajetória (ADR 0001/0004). Desenho e envio estão implementados aqui;
- * o reconhecimento real depende do modelo (Fase 3).
+ * Extras de qualidade: nitidez em HiDPI (devicePixelRatio), redesenho a partir da
+ * própria tinta (permite desfazer e redimensionar sem perder traços).
  */
-export default function InkCanvas({ width, height, onRecognize }: Props) {
+export default function InkCanvas({ onRecognize, busy = false }: Props) {
+  const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const inkRef = useRef<Ink>(emptyInk(width, height));
+  const inkRef = useRef<Ink>(emptyInk(0, 0));
   const drawingRef = useRef(false);
   const t0Ref = useRef<number>(0);
-  const [dirty, setDirty] = useState(false);
+  const [strokeCount, setStrokeCount] = useState(0);
+
+  const ctx = () => canvasRef.current!.getContext("2d")!;
+
+  /** Redesenha toda a tinta (fonte da verdade) no canvas. */
+  const redraw = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const c = ctx();
+    const dpr = window.devicePixelRatio || 1;
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c.clearRect(0, 0, canvas.width / dpr, canvas.height / dpr);
+    c.strokeStyle = PEN_COLOR;
+    c.lineWidth = PEN_WIDTH;
+    c.lineCap = "round";
+    c.lineJoin = "round";
+    for (const s of inkRef.current.strokes) {
+      if (s.points.length === 0) continue;
+      c.beginPath();
+      c.moveTo(s.points[0].x, s.points[0].y);
+      for (const p of s.points.slice(1)) c.lineTo(p.x, p.y);
+      if (s.points.length === 1) c.lineTo(s.points[0].x + 0.1, s.points[0].y);
+      c.stroke();
+    }
+  }, []);
+
+  /** Dimensiona o canvas para o wrapper, com nitidez HiDPI, e redesenha. */
+  const resize = useCallback(() => {
+    const wrap = wrapRef.current;
+    const canvas = canvasRef.current;
+    if (!wrap || !canvas) return;
+    const w = wrap.clientWidth;
+    const h = Math.round(w * ASPECT);
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width = Math.round(w * dpr);
+    canvas.height = Math.round(h * dpr);
+    canvas.style.height = `${h}px`;
+    if (inkRef.current.strokes.length === 0) {
+      inkRef.current = emptyInk(w, h);
+    }
+    redraw();
+  }, [redraw]);
+
+  useEffect(() => {
+    resize();
+    const ro = new ResizeObserver(resize);
+    if (wrapRef.current) ro.observe(wrapRef.current);
+    return () => ro.disconnect();
+  }, [resize]);
 
   const toPoint = useCallback((e: React.PointerEvent): Point => {
     const rect = canvasRef.current!.getBoundingClientRect();
@@ -39,14 +88,14 @@ export default function InkCanvas({ width, height, onRecognize }: Props) {
   }, []);
 
   const drawSegment = (a: Point, b: Point) => {
-    const ctx = canvasRef.current!.getContext("2d")!;
-    ctx.strokeStyle = "#111";
-    ctx.lineWidth = 2.5;
-    ctx.lineCap = "round";
-    ctx.beginPath();
-    ctx.moveTo(a.x, a.y);
-    ctx.lineTo(b.x, b.y);
-    ctx.stroke();
+    const c = ctx();
+    c.strokeStyle = PEN_COLOR;
+    c.lineWidth = PEN_WIDTH;
+    c.lineCap = "round";
+    c.beginPath();
+    c.moveTo(a.x, a.y);
+    c.lineTo(b.x, b.y);
+    c.stroke();
   };
 
   const onPointerDown = (e: React.PointerEvent) => {
@@ -54,7 +103,7 @@ export default function InkCanvas({ width, height, onRecognize }: Props) {
     drawingRef.current = true;
     const stroke: Stroke = { points: [toPoint(e)] };
     inkRef.current.strokes.push(stroke);
-    setDirty(true);
+    setStrokeCount(inkRef.current.strokes.length);
   };
 
   const onPointerMove = (e: React.PointerEvent) => {
@@ -71,31 +120,52 @@ export default function InkCanvas({ width, height, onRecognize }: Props) {
     e.currentTarget.releasePointerCapture(e.pointerId);
   };
 
-  const clear = () => {
-    const ctx = canvasRef.current!.getContext("2d")!;
-    ctx.clearRect(0, 0, width, height);
-    inkRef.current = emptyInk(width, height);
-    t0Ref.current = 0;
-    setDirty(false);
+  const undo = () => {
+    inkRef.current.strokes.pop();
+    setStrokeCount(inkRef.current.strokes.length);
+    if (inkRef.current.strokes.length === 0) t0Ref.current = 0;
+    redraw();
   };
 
+  const clear = () => {
+    const wrap = wrapRef.current!;
+    inkRef.current = emptyInk(wrap.clientWidth, Math.round(wrap.clientWidth * ASPECT));
+    t0Ref.current = 0;
+    setStrokeCount(0);
+    redraw();
+  };
+
+  const hasInk = strokeCount > 0;
+
   return (
-    <div>
+    <div ref={wrapRef} className="sheet-wrap">
       <canvas
         ref={canvasRef}
-        width={width}
-        height={height}
-        className="canvas-surface"
+        className="sheet"
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerLeave={onPointerUp}
       />
-      <div style={{ marginTop: 12, display: "flex", gap: 8 }}>
-        <button onClick={() => onRecognize(inkRef.current)} disabled={!dirty}>
-          Reconhecer
+      <div className={`sheet-hint ${hasInk ? "hidden" : ""}`}>
+        escreva uma expressão aqui
+      </div>
+      <div className="toolbar">
+        <div className="toolbar-group">
+          <button className="btn btn-ghost" onClick={undo} disabled={!hasInk || busy}>
+            ← desfazer
+          </button>
+          <button className="btn btn-ghost" onClick={clear} disabled={!hasInk || busy}>
+            limpar
+          </button>
+        </div>
+        <button
+          className="btn btn-primary"
+          onClick={() => onRecognize(inkRef.current)}
+          disabled={!hasInk || busy}
+        >
+          {busy ? "reconhecendo…" : "reconhecer →"}
         </button>
-        <button onClick={clear}>Limpar</button>
       </div>
     </div>
   );

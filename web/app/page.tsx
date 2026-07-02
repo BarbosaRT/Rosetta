@@ -6,28 +6,63 @@ import LatexView from "@/components/LatexView";
 import { recognize } from "@/lib/api";
 import type { Ink } from "@/lib/ink";
 
+type Status = "idle" | "busy" | "error";
+
 export default function Home() {
   const [latex, setLatex] = useState<string>("");
-  const [status, setStatus] = useState<string>("");
+  const [status, setStatus] = useState<Status>("idle");
+  const [errorMsg, setErrorMsg] = useState<string>("");
 
   async function handleRecognize(ink: Ink) {
-    setStatus("reconhecendo…");
+    setStatus("busy");
+    setErrorMsg("");
     try {
       const { latex } = await recognize(ink);
       setLatex(latex);
-      setStatus("");
+      setStatus("idle");
     } catch (e) {
-      // Enquanto o modelo não está treinado, a API devolve 501 (stub). Ver roadmap Fase 3.
-      setStatus(`sem modelo ainda (${(e as Error).message})`);
+      const msg = (e as Error).message;
+      setErrorMsg(
+        msg.includes("501")
+          ? "modelo ainda não carregado — defina HMER_CKPT na API"
+          : `falha ao reconhecer (${msg})`
+      );
+      setStatus("error");
     }
   }
 
   return (
-    <main style={{ maxWidth: 720, margin: "0 auto", padding: 24 }}>
-      <h1>Rosetta — escreva matemática à mão</h1>
-      <InkCanvas width={640} height={360} onRecognize={handleRecognize} />
-      {status && <p style={{ opacity: 0.7 }}>{status}</p>}
-      <LatexView latex={latex} />
+    <main className="page">
+      <header className="masthead reveal reveal-1">
+        <h1 className="wordmark">
+          Rosetta<span className="dot">.</span>
+        </h1>
+        <span className="masthead-meta">
+          tinta <span className="arrow">→</span> latex
+        </span>
+      </header>
+
+      <div className="reveal reveal-2">
+        <InkCanvas onRecognize={handleRecognize} busy={status === "busy"} />
+        <div className={`status ${status === "error" ? "error" : ""}`} role="status">
+          {status === "busy" && (
+            <>
+              <span className="status-dot" />
+              lendo a tinta…
+            </>
+          )}
+          {status === "error" && errorMsg}
+        </div>
+      </div>
+
+      <div className="reveal reveal-3">
+        <LatexView latex={latex} />
+      </div>
+
+      <footer className="colophon">
+        <span>tinta online → bigru → transformer → latex</span>
+        <span>projeto rosetta</span>
+      </footer>
     </main>
   );
 }

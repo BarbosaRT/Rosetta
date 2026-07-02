@@ -1,0 +1,56 @@
+# Config base — herdada/override pelas demais. YAML → dataclass em utils/config.py.
+# Defaults compactos p/ caber em VRAM ~6-8 GB. Escalar aqui, não no código.
+
+seed: 42
+
+data:
+  dataset: crohme            # crohme | mathwriting
+  root: data/crohme          # caminho fora do git
+  max_points: 1024           # trunca/subamostra tinta mais longa
+  max_tokens: 256            # comprimento máx. do alvo LaTeX
+  normalize: true            # normaliza (x,y) por bbox da tinta
+  resample_step: null        # null = sem reamostragem; float = passo espacial
+
+tokenizer:
+  type: latex_custom          # ver ADR 0003
+  vocab_path: artifacts/vocab.json
+  specials: ["<pad>", "<bos>", "<eos>", "<unk>"]
+
+model:
+  head: latex                 # latex | sketch_cls  (ver ADR 0006)
+  d_model: 256
+  in_features: 6              # x, y, dx, dy, pen_down, eos_stroke (ver data/ink.py)
+  encoder:
+    type: bigru               # bigru | transformer  (ver ADR 0002)
+    layers: 2
+    hidden: 256
+    dropout: 0.2
+    bidirectional: true
+  decoder:                    # usado quando head == latex
+    type: transformer
+    layers: 3
+    heads: 4
+    ff: 1024
+    dropout: 0.2
+
+train:
+  epochs: 50
+  batch_size: 16
+  grad_accum: 2               # batch efetivo = batch_size * grad_accum
+  lr: 3.0e-4
+  weight_decay: 0.01
+  warmup_steps: 500
+  amp: true                   # mixed precision
+  bucket_by_length: true      # agrupa sequências de comprimento parecido
+  grad_clip: 1.0
+  label_smoothing: 0.1
+  num_workers: 4
+
+infer:
+  beam_size: 4
+  max_len: 256
+
+checkpoint:
+  dir: checkpoints
+  save_every_steps: 500
+  resume: null                # caminho de .ckpt p/ retomar; null = do zero

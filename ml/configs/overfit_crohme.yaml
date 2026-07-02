@@ -1,0 +1,23 @@
+# Fase 1 — PROVA RÁPIDA: overfitar um subconjunto minúsculo do CROHME.
+# Objetivo: loss → ~0 e o modelo reproduzir o LaTeX das amostras. Se não overfitar,
+# o seq2seq está quebrado — conserte antes de escalar.
+_base_: base.yaml
+
+data:
+  dataset: crohme
+  root: data/crohme
+  subset_size: 32             # só algumas dezenas de amostras
+  max_points: 512
+
+model:
+  d_model: 128                # bem pequeno; overfit é sobre memorizar
+  encoder: { hidden: 128, layers: 1 }
+  decoder: { layers: 2, heads: 4, ff: 512 }
+
+train:
+  epochs: 300
+  batch_size: 8
+  grad_accum: 1
+  lr: 5.0e-4
+  label_smoothing: 0.0        # queremos memorizar
+  bucket_by_length: false

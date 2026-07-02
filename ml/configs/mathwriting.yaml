@@ -1,0 +1,27 @@
+# Fase 2 — Escalar para MathWriting (humanas + sintéticas) com augmentation e avaliação.
+_base_: base.yaml
+
+data:
+  dataset: mathwriting
+  root: data/mathwriting
+  use_synthetic: true
+  max_points: 1024
+  augment: true               # ver data/augment.py
+
+model:
+  d_model: 256
+  encoder: { type: bigru, hidden: 256, layers: 2 }
+  # Para experimentar Transformer encoder (mais VRAM):
+  # encoder: { type: transformer, layers: 4, heads: 4, ff: 1024 }
+
+train:
+  epochs: 40
+  batch_size: 16
+  grad_accum: 4               # batch efetivo 64 sem estourar VRAM
+  lr: 3.0e-4
+  amp: true
+  bucket_by_length: true
+
+eval:
+  metrics: ["cer", "exact_match"]
+  split: valid

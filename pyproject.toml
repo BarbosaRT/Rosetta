@@ -1,0 +1,25 @@
+# Raiz do workspace Python (uv). Une os pacotes ml/ e api/.
+# Ver docs/adr/0005-python-dependency-uv.md
+[project]
+name = "hmer-monorepo"
+version = "0.0.0"
+description = "Online HMER monorepo (ml + api)"
+requires-python = ">=3.10"
+
+[tool.uv.workspace]
+members = ["ml", "api"]
+
+[tool.uv.sources]
+hmer-ml = { workspace = true }
+hmer-api = { workspace = true }
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+[tool.ruff.lint]
+# E/F pyflakes+pycodestyle, I isort, UP pyupgrade, B bugbear
+select = ["E", "F", "I", "UP", "B"]
+
+[tool.pytest.ini_options]
+testpaths = ["ml/tests", "api/tests"]

@@ -1,16 +1,18 @@
 #!/usr/bin/env bash
 # Starts the Rosetta API (FastAPI/uvicorn) with the real model, from the repo root.
-# Usage:  ./scripts/serve_api.sh  [--ckpt path.ckpt] [--device cpu|cuda] [--port 8000]
+# Usage:  ./scripts/serve_api.sh  [--ckpt path.ckpt] [--config path.yaml] [--device cpu|cuda] [--port 8000]
 
 set -euo pipefail
 
 CKPT="checkpoints/crohme_rs/last.ckpt"
+CONFIG="ml/configs/crohme.yaml"
 DEVICE="cpu"
 PORT=8000
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --ckpt)   CKPT="$2";   shift 2 ;;
+    --config) CONFIG="$2"; shift 2 ;;
     --device) DEVICE="$2"; shift 2 ;;
     --port)   PORT="$2";   shift 2 ;;
       *) echo "Unknown option: $1" >&2; exit 1 ;;
@@ -35,6 +37,7 @@ else
   export HMER_CKPT="$CKPT"
 fi
 
+export HMER_CONFIG="$CONFIG"
 export HMER_DEVICE="$DEVICE"
 export PYTHONPATH="api/src:ml/src"
 

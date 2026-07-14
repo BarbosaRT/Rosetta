@@ -262,7 +262,7 @@ export default function NotebookCanvas({ onSolvedChange }: Props) {
       if (err instanceof ApiError && err.status === 501) {
         setStatus({ kind: "error", msg: "modelo não carregado — defina HMER_CKPT na API" });
       } else {
-        setStatus({ kind: "error", msg: "api fora do ar? rode scripts/serve_api.ps1" });
+        setStatus({ kind: "error", msg: "api fora do ar? rode scripts/serve_api.sh" });
       }
     } finally {
       busyRef.current = false;
@@ -332,7 +332,7 @@ export default function NotebookCanvas({ onSolvedChange }: Props) {
       if (err instanceof ApiError && err.status === 501) {
         setStatus({ kind: "error", msg: "classificador de desenhos ainda não treinado" });
       } else {
-        setStatus({ kind: "error", msg: "api fora do ar? rode scripts/serve_api.ps1" });
+        setStatus({ kind: "error", msg: "api fora do ar? rode scripts/serve_api.sh" });
       }
     } finally {
       busyRef.current = false;

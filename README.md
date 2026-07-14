@@ -105,9 +105,16 @@ Details in [`docs/roadmap.md`](docs/roadmap.md) · decisions in [`docs/adr/`](do
 ## 🚀 Run the notebook
 
 ```powershell
-# terminal 1 — model API (loads both checkpoints at startup)
+# Windows (PowerShell) — terminal 1 — model API
 .\scripts\serve_api.ps1                      # defaults: contas + desenhos, CPU, :8000
+```
 
+```bash
+# Linux / macOS — terminal 1 — model API
+./scripts/serve_api.sh                        # defaults: contas + desenhos, CPU, :8000
+```
+
+```bash
 # terminal 2 — the notebook
 cd web; npm install; npm run dev             # → http://localhost:3000
 ```
@@ -115,8 +122,15 @@ cd web; npm install; npm run dev             # → http://localhost:3000
 Write `2 + 3 =` and pause; draw a cat and press `desenho?`. Without checkpoints the
 API starts in stub mode (HTTP 501) — handy for frontend work against the contract.
 
-If a port gets stuck (orphaned server on Windows):
-`Get-NetTCPConnection -LocalPort 8000 -State Listen | % OwningProcess | % { Stop-Process -Id $_ -Force }`
+If a port gets stuck (orphaned server):
+
+```bash
+# Linux
+fuser -k 8000/tcp
+
+# Windows (PowerShell)
+Get-NetTCPConnection -LocalPort 8000 -State Listen | % OwningProcess | % { Stop-Process -Id $_ -Force }
+```
 
 ## 🧪 Prove the pipeline in 2 minutes (no dataset download)
 
@@ -169,13 +183,13 @@ length bucketing, and checkpointing with **automatic resume** — interrupt with
 │                #   63 tests
 ├── web/         # Next.js: the notebook — pages, pens/eraser/undo, auto-solve, KaTeX panel
 ├── xournalpp-plugin/  # paused: Lua plugin with the same backend (no stroke events in Lua API)
-├── scripts/     # serve_api.ps1, dataset downloads, glyph generator, e2e checks
+├── scripts/     # serve_api.sh / .ps1, dataset downloads, glyph generator, e2e checks
 ├── schemas/     # ink.schema.json — single ink contract (web = api = ml)
 └── docs/        # vision, datasets, roadmap, and ADRs (architecture decisions)
 ```
 
 > **Xournal++ (paused experiment):** before the notebook, the same backend powered a
-> Lua plugin for Xournal++ (`scripts/install_plugin.ps1`, Ctrl+M). It works, but the
+> Lua plugin for Xournal++ (`scripts/install_plugin.sh` / `.ps1`, Ctrl+M). It works, but the
 > Lua API has no stroke events — no write-time trigger — so the web notebook became
 > the primary interface.
 

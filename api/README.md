@@ -14,10 +14,19 @@ O corpo de `/recognize` segue **`schemas/ink.schema.json`** (espelhado em `schem
 ## Rodar (da RAIZ do repo — caminhos do config são relativos a ela)
 
 ```powershell
+# Windows (PowerShell)
 $env:PYTHONPATH = "api/src;ml/src"
 $env:HMER_CKPT  = "checkpoints/crohme/last.ckpt"     # ou overfit_crohme p/ teste
 $env:HMER_CONFIG = "ml/configs/crohme.yaml"          # config do TREINO do checkpoint
-C:\HMER\venv\Scripts\python.exe -m uvicorn hmer_api.main:app --port 8000
+venv\Scripts\python.exe -m uvicorn hmer_api.main:app --port 8000
+```
+
+```bash
+# Linux / macOS
+export PYTHONPATH="api/src:ml/src"
+export HMER_CKPT="checkpoints/crohme/last.ckpt"      # ou overfit_crohme p/ teste
+export HMER_CONFIG="ml/configs/crohme.yaml"           # config do TREINO do checkpoint
+venv/bin/python -m uvicorn hmer_api.main:app --port 8000
 ```
 
 Variáveis: `HMER_CKPT` (sem ela → 501 stub), `HMER_CONFIG` (arquitetura + vocab do
